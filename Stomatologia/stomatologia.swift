@@ -3,10 +3,16 @@ protocol IRejestr {
     func oddzial() -> String
 }
 
+protocol ISpecjalistyczny {
+    func konsultacja()
+    func skierowanie(pacjent: String) -> String
+}
+
 class PlacowkaStomatologiczna: IRejestr {
     var Nazwa: String
     var adres: String
     var godzOtwarcia: String
+    private(set) var liczbaPacjentow: Int = 0
     
     init(nazwa: String, adres: String, godzOtwarcia: String) {
         self.Nazwa = nazwa
@@ -14,7 +20,9 @@ class PlacowkaStomatologiczna: IRejestr {
         self.godzOtwarcia = godzOtwarcia
     }
     
-    var stawki: [String: Double] {return [:]}
+    var stawki: [String: Double] {
+        fatalError("Podklasa musi nadpisać 'stawki'.")
+    }
     
     func wyswietlUslugi() {
         print("Usługi w oddziale \(oddzial()):")
@@ -22,16 +30,23 @@ class PlacowkaStomatologiczna: IRejestr {
             print(" \(zabieg) - \(cena) zł")
         }
     }
-    func oddzial() -> String { return "" }
+    
+    func oddzial() -> String {
+        fatalError("Podklasa musi nadpisać 'oddzial()'.")
+    }
+    
+    func przyjmijPacjenta() {
+        liczbaPacjentow += 1
+    }
 }
 
 class StomatologiaOperacje {
     static func przyjmijPacjenta(nazwisko: String, zabieg: String, data: String, cena: Double, oddzial: PlacowkaStomatologiczna) {
-        print("\(nazwisko) został przyjęty do \(oddzial.oddzial()) na \(zabieg) na \(data) na kwotę \(cena) zł")
+        print("Przyjęto: \(nazwisko) | Oddział: \(oddzial.oddzial()) | Zabieg: \(zabieg) | Termin: \(data) | Cena: \(cena) zł")
     }
     
     static func przyjmijPacjenta(nazwisko: String, data: String, oddzial: PlacowkaStomatologiczna) {
-        print("\(nazwisko) został przyjęty do \(oddzial.oddzial()) na \(data)")
+        print("Przyjęto: \(nazwisko) | Oddział: \(oddzial.oddzial()) | Termin: \(data)")
     }
     
     static func sterylizujNarzedzia() {
@@ -42,24 +57,49 @@ class StomatologiaOperacje {
 }
 
 class Pacjent {
-    var nazwisko: String
+    private var _nazwisko: String
+    private var _pesel: String
+    private var historiaWizyt: [Wizyta] = []
+    
+    var nazwisko: String {
+        get { return _nazwisko }
+        set { _nazwisko = newValue }
+    }
+    
     var pesel: String {
-        didSet {
-            if pesel.count != 11 {
+        get { return _pesel}
+        set {
+            if newValue.count != 11 {
                 print("PESEL musi mieć 11 cyfr.")
-                pesel = oldValue
+            } else {
+                _pesel = newValue
             }
         }
     }
     
     init(nazwisko: String, pesel: String) {
-        self.nazwisko = nazwisko
-        self.pesel = pesel
+        self._nazwisko = nazwisko
+        self._pesel = pesel
     }
     
     init(nazwisko: String) {
-        self.nazwisko = nazwisko
-        self.pesel = "brak"
+        self._nazwisko = nazwisko
+        self._pesel = "brak"
+    }
+    
+    func dodajWizyte(wizyta: Wizyta) {
+        historiaWizyt.append(wizyta)
+    }
+    
+    func wyswietlHistorie() {
+        print("--- Historia wizyt pacjenta \(nazwisko)---")
+        if historiaWizyt.isEmpty {
+            print("Brak wizyt")
+        } else {
+            for w in historiaWizyt {
+                print("- Oddział: \(w.oddzial.oddzial()) | Zabieg: \(w.zabieg) | Termin: \(w.data) | Cena: \(w.cena) zł")
+            }
+        }
     }
 }
 
@@ -94,7 +134,49 @@ class Wizyta {
     }
 }
 
-class Ortodoncja: PlacowkaStomatologiczna {
+class Rejestr {
+    private var oddzialy: [PlacowkaStomatologiczna] = []
+    
+    func dodajOddzial(oddzial: PlacowkaStomatologiczna) {
+        oddzialy.append(oddzial)
+        print("Dodano nowy oddział: \(oddzial.oddzial())")
+    }
+    
+    func usunOddzial(nazwa: String) {
+        if let index = oddzialy.firstIndex(where: { $0.oddzial() == nazwa} ) {
+            oddzialy.remove(at: index)
+            print("Usunięto oddział: \(nazwa)")
+        } else {
+            print("Nie znaleziono oddziału: \(nazwa)")
+        }
+    }
+    
+    func wyswietlWszystkie() {
+        print("===== Lista oddziałów =====")
+        for oddzial in oddzialy {
+            print(oddzial.oddzial())
+        }
+    }
+    
+    func liczbaOddzialow() -> Int {
+        return oddzialy.count
+    }
+    
+    func raport() {
+        print("==== RAPORT ====")
+        print("Łączna liczba oddziałów: \(oddzialy.count)")
+        
+        for oddzial in oddzialy {
+            let liczbaUslug = oddzial.stawki.count
+            let ceny = oddzial.stawki.values
+            let cenaSrednia = ceny.reduce(0, +) / Double(liczbaUslug)
+            
+            print("- \(oddzial.oddzial()): \(liczbaUslug) usługi, średnia cena: \(cenaSrednia) zł, pacjenci: \(oddzial.liczbaPacjentow)")
+        }
+    }
+}
+
+class Ortodoncja: PlacowkaStomatologiczna, ISpecjalistyczny {
     override var stawki: [String: Double] {
         return [
             "Aparat stały": 3000.00,
@@ -104,6 +186,14 @@ class Ortodoncja: PlacowkaStomatologiczna {
     
     override func oddzial() -> String {
         return "Ortodoncja"
+    }
+    
+    func konsultacja() {
+        print("Wizyta na konsultację.")
+    }
+    
+    func skierowanie(pacjent: String) -> String {
+        return "Skierowanie dla \(pacjent) do specjalisty."
     }
 }
 
@@ -117,7 +207,7 @@ class StomatologiaDziecieca: PlacowkaStomatologiczna {
     }
     
     override func oddzial() -> String {
-        return "Stomatologia dziecięca"
+        return "Stomatologia Dziecięca"
     }
 }
 
@@ -130,7 +220,7 @@ class ChirurgiaStomatologiczna: PlacowkaStomatologiczna {
     }
     
     override func oddzial() -> String {
-        return "Chirurgia stomatologiczna"
+        return "Chirurgia Stomatologiczna"
     }
 }
 
@@ -143,6 +233,6 @@ class StomatologiaZachowawcza: PlacowkaStomatologiczna {
     }
     
     override func oddzial() -> String {
-        return "Stomatologia zachowawcza"
+        return "Stomatologia Zachowawcza"
     }
 }
